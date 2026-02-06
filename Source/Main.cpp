@@ -99,6 +99,10 @@ bool passengerExiting = false;
 float passengerAnimTimer = 0.0f;
 const float passengerAnimDuration = 0.8f;  // Brže ulazenje - 0.8s umesto 2s
 
+// Stanje depth testa i face cullinga (kontrolisano tasterima)
+bool depthTestEnabled = true;
+bool faceCullingEnabled = false;
+
 // Framebuffer za 2D display
 unsigned int displayFBO = 0;
 unsigned int displayTexture = 0;
@@ -512,20 +516,21 @@ void setupDisplayFramebuffer() {
 }
 
 void render2DDisplay(unsigned int shader2D, unsigned int VAO2D, unsigned int* numberTextures,
-                     unsigned int busTexture, unsigned int doorClosedTexture, 
-                     unsigned int doorOpenTexture, unsigned int passengersLabelTexture,
-                     unsigned int finesLabelTexture, unsigned int controlTexture) {
+                 unsigned int busTexture, unsigned int doorClosedTexture, 
+                 unsigned int doorOpenTexture, unsigned int passengersLabelTexture,
+                 unsigned int finesLabelTexture, unsigned int controlTexture) {
     
-    glBindFramebuffer(GL_FRAMEBUFFER, displayFBO);
-    glViewport(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
-    glClearColor(0.15f, 0.2f, 0.25f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+glBindFramebuffer(GL_FRAMEBUFFER, displayFBO);
+glViewport(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+glClearColor(0.15f, 0.2f, 0.25f, 1.0f);
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // iskljucen depth test za 2D renderovanje!
-    glDisable(GL_DEPTH_TEST);
+// PRIVREMENO iskljuci depth test samo za 2D renderovanje u framebuffer
+GLboolean depthTestWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+glDisable(GL_DEPTH_TEST);
 
-    glUseProgram(shader2D);
-    glBindVertexArray(VAO2D);
+glUseProgram(shader2D);
+glBindVertexArray(VAO2D);
 
     glUniform1i(glGetUniformLocation(shader2D, "uUseColor"), 1);
     glUniform3f(glGetUniformLocation(shader2D, "uColor"), 0.8f, 0.1f, 0.1f);
@@ -609,8 +614,10 @@ void render2DDisplay(unsigned int shader2D, unsigned int VAO2D, unsigned int* nu
         renderTexture(controlTexture, 0.85f, 0.75f, 0.12f, 0.12f, 1.0f, shader2D, VAO2D);
     }
 
-    // Ponovo uključi depth test za 3D renderovanje
-    glEnable(GL_DEPTH_TEST);
+    // VRATI prethodno stanje depth testa
+    if (depthTestWasEnabled) {
+        glEnable(GL_DEPTH_TEST);
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -817,7 +824,10 @@ int main()
     glViewport(0, 0, mode->width, mode->height);
     glLineWidth(3.0f);
     glClearColor(0.5, 0.5, 0.5, 1.0);
-    glCullFace(GL_BACK);
+    
+    // Face culling podesavanja - inicijalno ISKLJUCENO
+    glCullFace(GL_BACK);  // Definise koje strane se odstranjuju (zadnje)
+    glFrontFace(GL_CCW);  // Definise front face (counter-clockwise)
 
     // ========== UCITAVANJE SEJDERA ==========
     std::cout << "\n=== UCITAVANJE SEJDERA ===" << std::endl;
@@ -1256,18 +1266,26 @@ int main()
         // ========== LOGIKA ==========
         // Testiranje dubine
         if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
+            depthTestEnabled = true;
             glEnable(GL_DEPTH_TEST);
+            std::cout << "Depth Test: UKLJUČEN" << std::endl;
         }
         if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
+            depthTestEnabled = false;
             glDisable(GL_DEPTH_TEST);
+            std::cout << "Depth Test: ISKLJUČEN" << std::endl;
         }
 
         // Odstranjivanje lica
         if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
+            faceCullingEnabled = true;
             glEnable(GL_CULL_FACE);
+            std::cout << "Face Culling: UKLJUČEN" << std::endl;
         }
         if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
+            faceCullingEnabled = false;
             glDisable(GL_CULL_FACE);
+            std::cout << "Face Culling: ISKLJUČEN" << std::endl;
         }
 
         // Transformisanje
@@ -1583,7 +1601,9 @@ int main()
         glUniform1i(glGetUniformLocation(shader3D, "isInspector"), 0);
         glUniform1i(glGetUniformLocation(shader3D, "useCustomColor"), false);
 
-       
+        // ========== RENDEROVANJE AUTHOR TEKSTA (2D OVERLAY) ==========
+        // PRIVREMENO iskljuci depth test za 2D overlay
+        GLboolean depthTestWasEnabled = glIsEnabled(GL_DEPTH_TEST);
         glDisable(GL_DEPTH_TEST);
         
         glUseProgram(shader2D);
@@ -1609,7 +1629,10 @@ int main()
         setModelMatrix(shader2D, 0.7f, 0.8f, 0.25f, 0.15f);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         
-        glEnable(GL_DEPTH_TEST);
+        // VRATI prethodno stanje depth testa
+        if (depthTestWasEnabled) {
+            glEnable(GL_DEPTH_TEST);
+        }
 
         glfwSwapBuffers(window);
     }
