@@ -1,6 +1,6 @@
 # Bus Route Tracker
 
-A 2D graphical application for tracking a bus route with interactive passenger management and inspection system.
+A 3D graphical application for tracking a bus route with interactive passenger management and inspection system.
 
 ## Project Description
 
