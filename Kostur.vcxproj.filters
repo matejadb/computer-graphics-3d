@@ -1,0 +1,113 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Resource Files\Textures">
+      <UniqueIdentifier>{5b4d32ca-80d6-4b6b-b5b8-cccd9dcb6de7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Cursors">
+      <UniqueIdentifier>{4d68f755-b000-4eb3-b500-a69a1b0c6fa4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Shaders">
+      <UniqueIdentifier>{d10a0b51-5d2d-41da-aa08-e8e84b5f11b5}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\Main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Util.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Header\stb_image.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Header\Util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+    <None Include="..\..\source\repos\opengl-2d-bus\basic.vert">
+      <Filter>Resource Files\Shaders</Filter>
+    </None>
+    <None Include="..\..\source\repos\opengl-2d-bus\basic.frag">
+      <Filter>Resource Files\Shaders</Filter>
+    </None>
+    <None Include=".gitignore" />
+    <None Include="Resource Files\Shaders\basic3d.vert" />
+    <None Include="Resource Files\Shaders\basic3d.frag" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\number_0.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\number_1.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\number_2.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\number_3.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\number_4.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\number_5.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\number_6.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\number_7.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\number_8.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\number_9.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\bus_station.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\2d_bus.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\author_text.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\bus_control.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\opened_doors.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\closed_doors.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\stop_cursor.png">
+      <Filter>Resource Files\Cursors</Filter>
+    </Image>
+    <Image Include="..\passangers_label.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+    <Image Include="..\fines.png">
+      <Filter>Resource Files\Textures</Filter>
+    </Image>
+  </ItemGroup>
+</Project>
