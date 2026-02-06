@@ -39,14 +39,14 @@ struct Passenger {
     bool isMoving;
     int characterModel;
     bool isInspector;
-    bool reachedDoor;
+    int waypointIndex;  // 0=start, 1=outside door, 2=in doorway, 3=inside, 4=final seat
     
     // Random boje za putnika
     glm::vec3 shirtColor;
     glm::vec3 pantsColor;
     
     Passenger() : position(0), targetPosition(0), finalPosition(0), moveSpeed(1.0f), 
-                  isMoving(false), characterModel(0), isInspector(false), reachedDoor(false),
+                  isMoving(false), characterModel(0), isInspector(false), waypointIndex(0),
                   shirtColor(0.3f, 0.5f, 0.8f), pantsColor(0.2f, 0.2f, 0.6f) {}
 };
 
@@ -97,7 +97,7 @@ std::vector<Passenger> activePassengers;
 bool passengerEntering = false;
 bool passengerExiting = false;
 float passengerAnimTimer = 0.0f;
-const float passengerAnimDuration = 2.0f;
+const float passengerAnimDuration = 0.8f;  // Brže ulazenje - 0.8s umesto 2s
 
 // Framebuffer za 2D display
 unsigned int displayFBO = 0;
@@ -617,44 +617,42 @@ void render2DDisplay(unsigned int shader2D, unsigned int VAO2D, unsigned int* nu
 
 void addPassenger(bool isInsp = false) {
     Passenger p;
-    // Pocetna pozicija - van autobusa sa desne strane
-    p.position = glm::vec3(1.2f, -0.3f, 0.0f);
+    // WAYPOINT 0: Pocetna pozicija - van autobusa sa desne strane
+    p.position = glm::vec3(1.5f, -0.3f, 0.0f);
     
-    // WAYPOINT 1: Pozicija kod vrata (unutra)
-    p.targetPosition = glm::vec3(1.0f, -0.3f, 0.0f);
+    // WAYPOINT 1: Pozicija ispred vrata (spolja)
+    p.targetPosition = glm::vec3(1.2f, -0.3f, 0.0f);
     
-    // Konačna pozicija - pozadi vozaca, van vidnog polja (desno i nazad)
+    // Konačna pozicija - pozadi vozaca
     int rowOffset = activePassengers.size() / 4;
     int colOffset = activePassengers.size() % 4;
     
     p.finalPosition = glm::vec3(
-        0.5f + colOffset * 0.25f,  // Desno od vozača (pozitivno X)
+        0.5f + colOffset * 0.25f,  // Desno od vozača
         -0.3f,                      // Ista visina
-        0.8f + rowOffset * 0.4f     // Pozadi vozača (pozitivno Z = nazad)
+        0.8f + rowOffset * 0.4f     // Pozadi vozača
     );
     
-    p.moveSpeed = 0.5f;
+    p.moveSpeed = 1.2f;  // BRŽE - 1.2 umesto 0.4 (3x brže!)
     p.isMoving = true;
-    p.reachedDoor = false;
+    p.waypointIndex = 0;  // Počinje od waypoint-a 0
     p.characterModel = isInsp ? 15 : (rand() % 15);
     p.isInspector = isInsp;
     
     // Random boje za putnike, kontrolor ima uniformu
     if (isInsp) {
-        // Kontrolor - crna uniforma
         p.shirtColor = glm::vec3(0.1f, 0.1f, 0.1f);
         p.pantsColor = glm::vec3(0.05f, 0.05f, 0.05f);
     } else {
-        // Random boje za obične putnike
         p.shirtColor = glm::vec3(
-            0.2f + (rand() % 80) / 100.0f,  // R: 0.2 - 1.0
-            0.2f + (rand() % 80) / 100.0f,  // G: 0.2 - 1.0
-            0.2f + (rand() % 80) / 100.0f   // B: 0.2 - 1.0
+            0.2f + (rand() % 80) / 100.0f,
+            0.2f + (rand() % 80) / 100.0f,
+            0.2f + (rand() % 80) / 100.0f
         );
         p.pantsColor = glm::vec3(
-            0.1f + (rand() % 50) / 100.0f,  // R: 0.1 - 0.6 (tamniji)
-            0.1f + (rand() % 50) / 100.0f,  // G: 0.1 - 0.6
-            0.1f + (rand() % 50) / 100.0f   // B: 0.1 - 0.6
+            0.1f + (rand() % 50) / 100.0f,
+            0.1f + (rand() % 50) / 100.0f,
+            0.1f + (rand() % 50) / 100.0f
         );
     }
     
@@ -678,7 +676,9 @@ void removePassenger(bool removeInspector = false) {
     }
     
     if (removeIdx >= 0) {
-        activePassengers[removeIdx].targetPosition = glm::vec3(1.2f, -0.3f, 0.0f);
+        // Postavi waypoint za izlazak (obrnuti redosled od ulaska)
+        activePassengers[removeIdx].waypointIndex = 10;  // Počinje izlazak (sa sedišta)
+        // Prvo ide u centar hodnika (biće izračunato u updatePassengers)
         activePassengers[removeIdx].isMoving = true;
     }
 }
@@ -690,26 +690,79 @@ void updatePassengers(float dt) {
             float distance = glm::length(direction);
             
             if (distance < 0.05f) {
+                // Stigao do trenutnog waypoint-a
                 it->position = it->targetPosition;
                 
-                // Proveri da li je stigao do vrata (waypoint 1)
-                if (!it->reachedDoor) {
-                    // Stigao do vrata, sada idi na finalnu poziciju
-                    it->reachedDoor = true;
+                // ULAZAK U AUTOBUS (waypoint 0-4)
+                if (it->waypointIndex == 0) {
+                    // Stigao ispred vrata (spolja) → idi u vrata (u pragu)
+                    it->waypointIndex = 1;
+                    it->targetPosition = glm::vec3(1.05f, -0.3f, 0.0f);  // U pragu vrata
+                }
+                else if (it->waypointIndex == 1) {
+                    // U pragu vrata → idi malo unutra (prolazi kroz vrata)
+                    it->waypointIndex = 2;
+                    it->targetPosition = glm::vec3(0.95f, -0.3f, 0.0f);  // Unutra od vrata
+                }
+                else if (it->waypointIndex == 2) {
+                    // Prošao vrata → idi u centar hodnika (KLJUČNI WAYPOINT!)
+                    it->waypointIndex = 3;
+                    // Centar hodnika - sredina između vrata i zadnjeg dela
+                    float centerZ = (0.0f + it->finalPosition.z) / 2.0f;
+                    it->targetPosition = glm::vec3(0.7f, -0.3f, centerZ);  // Centar hodnika
+                }
+                else if (it->waypointIndex == 3) {
+                    // U centru hodnika → idi ka sedištu (bočno i dublje)
+                    it->waypointIndex = 4;
                     it->targetPosition = it->finalPosition;
-                    // Nastavi kretanje ka finalnoj poziciji
-                } else {
-                    // Stigao na finalnu poziciju
+                }
+                else if (it->waypointIndex == 4) {
+                    // Stigao na sedište → STANI
                     it->isMoving = false;
-                    
-                    // Ako je van autobusa (izlazi), obrisi ga
-                    if (it->position.x > 1.1f) {
-                        it = activePassengers.erase(it);
-                        continue;
-                    }
+                }
+                
+                // IZLAZAK IZ AUTOBUSA (waypoint 10-14)
+                else if (it->waypointIndex == 10) {
+                    // Sa sedišta → idi u centar hodnika (KLJUČNI WAYPOINT!)
+                    it->waypointIndex = 11;
+                    float centerZ = (0.0f + it->position.z) / 2.0f;
+                    it->targetPosition = glm::vec3(0.7f, -0.3f, centerZ);  // Centar hodnika
+                }
+                else if (it->waypointIndex == 11) {
+                    // Iz centra hodnika → idi kod vrata (unutra)
+                    it->waypointIndex = 12;
+                    it->targetPosition = glm::vec3(0.95f, -0.3f, 0.0f);  // Unutra kod vrata
+                }
+                else if (it->waypointIndex == 12) {
+                    // Kod vrata (unutra) → idi u prag vrata
+                    it->waypointIndex = 13;
+                    it->targetPosition = glm::vec3(1.05f, -0.3f, 0.0f);  // U pragu
+                }
+                else if (it->waypointIndex == 13) {
+                    // U pragu → idi napolje (ispred vrata)
+                    it->waypointIndex = 14;
+                    it->targetPosition = glm::vec3(1.2f, -0.3f, 0.0f);  // Spolja ispred vrata
+                }
+                else if (it->waypointIndex == 14) {
+                    // Ispred vrata (spolja) → idi daleko od autobusa
+                    it->waypointIndex = 15;
+                    it->targetPosition = glm::vec3(1.5f, -0.3f, 0.0f);  // Daleko od autobusa
+                }
+                else if (it->waypointIndex == 15) {
+                    // Daleko od autobusa → OBRIŠI putnika
+                    it = activePassengers.erase(it);
+                    continue;
                 }
             } else {
-                it->position += glm::normalize(direction) * it->moveSpeed * dt;
+                // Normalno kretanje ka target poziciji
+                glm::vec3 moveDir = glm::normalize(direction);
+                
+                // Uspori kod prolaska kroz vrata (waypoint 1 i 13)
+                if (it->waypointIndex == 1 || it->waypointIndex == 13) {
+                    it->position += moveDir * (it->moveSpeed * 0.7f) * dt;  // 70% brzine u vratima
+                } else {
+                    it->position += moveDir * it->moveSpeed * dt;  // Normalna brzina
+                }
             }
         }
         ++it;
