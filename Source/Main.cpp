@@ -44,10 +44,16 @@ struct Passenger {
     // Random boje za putnika
     glm::vec3 shirtColor;
     glm::vec3 pantsColor;
+    glm::vec3 hairColor;
+    
+    // Animacija hodanja
+    float walkAnimTime;
+    float legSwingAmount;
     
     Passenger() : position(0), targetPosition(0), finalPosition(0), moveSpeed(1.0f), 
                   isMoving(false), characterModel(0), isInspector(false), waypointIndex(0),
-                  shirtColor(0.3f, 0.5f, 0.8f), pantsColor(0.2f, 0.2f, 0.6f) {}
+                  shirtColor(0.3f, 0.5f, 0.8f), pantsColor(0.2f, 0.2f, 0.6f), hairColor(0.2f, 0.15f, 0.1f),
+                  walkAnimTime(0.0f), legSwingAmount(0.15f) {}
 };
 
 // ========== GLOBALNE PROMENLJIVE ==========
@@ -624,13 +630,13 @@ glBindVertexArray(VAO2D);
 
 void addPassenger(bool isInsp = false) {
     Passenger p;
-    // WAYPOINT 0: Pocetna pozicija - van autobusa sa desne strane
-    p.position = glm::vec3(1.5f, -0.3f, 0.0f);
+    // WAYPOINT 0: Pocetna pozicija - van autobusa DIREKTNO ISPRED VRATA
+    p.position = glm::vec3(1.2f, -0.3f, -0.075f);  // Direktno ispred vrata (centralno)
     
-    // WAYPOINT 1: Pozicija ispred vrata (spolja)
-    p.targetPosition = glm::vec3(1.2f, -0.3f, 0.0f);
+    // WAYPOINT 1: Pozicija u pragu vrata (ulazi pravo)
+    p.targetPosition = glm::vec3(1.05f, -0.3f, -0.075f);  // U pragu vrata
     
-    // Konačna pozicija - pozadi vozaca
+    // Konačna pozicija - pozadi vozaca (grid raspored)
     int rowOffset = activePassengers.size() / 4;
     int colOffset = activePassengers.size() % 4;
     
@@ -640,7 +646,7 @@ void addPassenger(bool isInsp = false) {
         0.8f + rowOffset * 0.4f     // Pozadi vozača
     );
     
-    p.moveSpeed = 1.2f;  // BRŽE - 1.2 umesto 0.4 (3x brže!)
+    p.moveSpeed = 1.2f;  // Brža brzina
     p.isMoving = true;
     p.waypointIndex = 0;  // Počinje od waypoint-a 0
     p.characterModel = isInsp ? 15 : (rand() % 15);
@@ -650,6 +656,7 @@ void addPassenger(bool isInsp = false) {
     if (isInsp) {
         p.shirtColor = glm::vec3(0.1f, 0.1f, 0.1f);
         p.pantsColor = glm::vec3(0.05f, 0.05f, 0.05f);
+        // Kontrolor nema kosu (ima kapicu)
     } else {
         p.shirtColor = glm::vec3(
             0.2f + (rand() % 80) / 100.0f,
@@ -661,6 +668,17 @@ void addPassenger(bool isInsp = false) {
             0.1f + (rand() % 50) / 100.0f,
             0.1f + (rand() % 50) / 100.0f
         );
+        // Random boja kose (braon, crna, plava, crvena)
+        int hairType = rand() % 4;
+        if (hairType == 0) {
+            p.hairColor = glm::vec3(0.2f, 0.15f, 0.1f);  // Braon
+        } else if (hairType == 1) {
+            p.hairColor = glm::vec3(0.05f, 0.05f, 0.05f);  // Crna
+        } else if (hairType == 2) {
+            p.hairColor = glm::vec3(0.9f, 0.85f, 0.5f);  // Plava
+        } else {
+            p.hairColor = glm::vec3(0.4f, 0.1f, 0.05f);  // Crvena
+        }
     }
     
     activePassengers.push_back(p);
@@ -696,67 +714,61 @@ void updatePassengers(float dt) {
             glm::vec3 direction = it->targetPosition - it->position;
             float distance = glm::length(direction);
             
+            // Animacija hodanja - povećava vreme animacije dok se kreće
+            it->walkAnimTime += dt * 8.0f;  // Brzina animacije hodanja
+            
             if (distance < 0.05f) {
                 // Stigao do trenutnog waypoint-a
                 it->position = it->targetPosition;
                 
-                // ULAZAK U AUTOBUS (waypoint 0-4)
+                // ULAZAK U AUTOBUS (waypoint 0-3) - PRAVO KROZ VRATA
                 if (it->waypointIndex == 0) {
-                    // Stigao ispred vrata (spolja) → idi u vrata (u pragu)
+                    // U pragu vrata → idi unutra (pravo kroz vrata, samo X se menja)
                     it->waypointIndex = 1;
-                    it->targetPosition = glm::vec3(1.05f, -0.3f, 0.0f);  // U pragu vrata
+                    it->targetPosition = glm::vec3(0.85f, -0.3f, -0.075f);  // Unutra, pravo
                 }
                 else if (it->waypointIndex == 1) {
-                    // U pragu vrata → idi malo unutra (prolazi kroz vrata)
+                    // Unutra od vrata → idi u hodnik (počinje bočno kretanje ka sedištu)
                     it->waypointIndex = 2;
-                    it->targetPosition = glm::vec3(0.95f, -0.3f, 0.0f);  // Unutra od vrata
+                    // Sada može da se pomera bočno ka svom sedištu
+                    float centerZ = (it->finalPosition.z - 0.075f) / 2.0f - 0.075f;
+                    it->targetPosition = glm::vec3(0.7f, -0.3f, centerZ);  // Pomeraj se ka sedištu
                 }
                 else if (it->waypointIndex == 2) {
-                    // Prošao vrata → idi u centar hodnika (KLJUČNI WAYPOINT!)
+                    // U hodniku → idi ka sedištu (direktno)
                     it->waypointIndex = 3;
-                    // Centar hodnika - sredina između vrata i zadnjeg dela
-                    float centerZ = (0.0f + it->finalPosition.z) / 2.0f;
-                    it->targetPosition = glm::vec3(0.7f, -0.3f, centerZ);  // Centar hodnika
-                }
-                else if (it->waypointIndex == 3) {
-                    // U centru hodnika → idi ka sedištu (bočno i dublje)
-                    it->waypointIndex = 4;
                     it->targetPosition = it->finalPosition;
                 }
-                else if (it->waypointIndex == 4) {
+                else if (it->waypointIndex == 3) {
                     // Stigao na sedište → STANI
                     it->isMoving = false;
+                    it->walkAnimTime = 0.0f;  // Resetuj animaciju kada stane
                 }
                 
-                // IZLAZAK IZ AUTOBUSA (waypoint 10-14)
+                // IZLAZAK IZ AUTOBUSA (waypoint 10-13) - PRAVO KROZ VRATA
                 else if (it->waypointIndex == 10) {
-                    // Sa sedišta → idi u centar hodnika (KLJUČNI WAYPOINT!)
+                    // Sa sedišta → idi ka hodniku (sredina puta)
                     it->waypointIndex = 11;
-                    float centerZ = (0.0f + it->position.z) / 2.0f;
-                    it->targetPosition = glm::vec3(0.7f, -0.3f, centerZ);  // Centar hodnika
+                    float centerZ = (it->position.z - 0.075f) / 2.0f - 0.075f;
+                    it->targetPosition = glm::vec3(0.7f, -0.3f, centerZ);  // Hodnik
                 }
                 else if (it->waypointIndex == 11) {
-                    // Iz centra hodnika → idi kod vrata (unutra)
+                    // Iz hodnika → idi ka vratima (centralno, direktno)
                     it->waypointIndex = 12;
-                    it->targetPosition = glm::vec3(0.95f, -0.3f, 0.0f);  // Unutra kod vrata
+                    it->targetPosition = glm::vec3(0.85f, -0.3f, -0.075f);  // Kod vrata, centralno
                 }
                 else if (it->waypointIndex == 12) {
-                    // Kod vrata (unutra) → idi u prag vrata
+                    // Kod vrata (unutra) → idi u prag vrata (pravo napolje)
                     it->waypointIndex = 13;
-                    it->targetPosition = glm::vec3(1.05f, -0.3f, 0.0f);  // U pragu
+                    it->targetPosition = glm::vec3(1.05f, -0.3f, -0.075f);  // Prag vrata
                 }
                 else if (it->waypointIndex == 13) {
-                    // U pragu → idi napolje (ispred vrata)
+                    // U pragu → idi napolje (pravo van autobusa)
                     it->waypointIndex = 14;
-                    it->targetPosition = glm::vec3(1.2f, -0.3f, 0.0f);  // Spolja ispred vrata
+                    it->targetPosition = glm::vec3(1.2f, -0.3f, -0.075f);  // Spolja, centralno
                 }
                 else if (it->waypointIndex == 14) {
-                    // Ispred vrata (spolja) → idi daleko od autobusa
-                    it->waypointIndex = 15;
-                    it->targetPosition = glm::vec3(1.5f, -0.3f, 0.0f);  // Daleko od autobusa
-                }
-                else if (it->waypointIndex == 15) {
-                    // Daleko od autobusa → OBRIŠI putnika
+                    // Napolje → OBRIŠI putnika
                     it = activePassengers.erase(it);
                     continue;
                 }
@@ -764,13 +776,16 @@ void updatePassengers(float dt) {
                 // Normalno kretanje ka target poziciji
                 glm::vec3 moveDir = glm::normalize(direction);
                 
-                // Uspori kod prolaska kroz vrata (waypoint 1 i 13)
-                if (it->waypointIndex == 1 || it->waypointIndex == 13) {
+                // Uspori kod prolaska kroz vrata (waypoint 0 i 12-13)
+                if (it->waypointIndex == 0 || it->waypointIndex == 12 || it->waypointIndex == 13) {
                     it->position += moveDir * (it->moveSpeed * 0.7f) * dt;  // 70% brzine u vratima
                 } else {
                     it->position += moveDir * it->moveSpeed * dt;  // Normalna brzina
                 }
             }
+        } else {
+            // Kada ne hoda, resetuj animaciju
+            it->walkAnimTime = 0.0f;
         }
         ++it;
     }
@@ -1061,142 +1076,234 @@ int main()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    // HUMANOID VAO FOR PASSENGERS
+    // HUMANOID VAO FOR PASSENGERS - POBOLJŠAN IZGLED
     std::vector<float> humanoidVertices;
     
-    // GLAVA (sfera aproksimacija - kocka)
+    // GLAVA - zaobljena, realistične proporcije
     float headVertices[] = {
-        // Prednja strana glave
-        -0.06f,  0.20f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-         0.06f,  0.20f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-         0.06f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-        -0.06f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        // Prednja strana glave (blago zaobljena)
+        -0.05f,  0.18f,  0.07f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.05f,  0.18f,  0.07f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.05f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        -0.05f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
         // Zadnja strana glave
-        -0.06f,  0.20f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
-        -0.06f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-         0.06f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-         0.06f,  0.20f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
-        // Leva strana glave
-        -0.06f,  0.20f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
-        -0.06f,  0.20f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
-        -0.06f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f, -1.0f, 0.0f, 0.0f,
-        -0.06f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f, -1.0f, 0.0f, 0.0f,
-        // Desna strana glave
-         0.06f,  0.20f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
-         0.06f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  1.0f, 0.0f, 0.0f,
-         0.06f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  1.0f, 0.0f, 0.0f,
-         0.06f,  0.20f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
-        // Vrh glave
-        -0.06f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 1.0f, 0.0f,
-        -0.06f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 1.0f, 0.0f,
-         0.06f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 1.0f, 0.0f,
-         0.06f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 1.0f, 0.0f,
-        // Dno glave
-        -0.06f,  0.20f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, -1.0f, 0.0f,
-         0.06f,  0.20f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, -1.0f, 0.0f,
-         0.06f,  0.20f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, -1.0f, 0.0f,
-        -0.06f,  0.20f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, -1.0f, 0.0f,
+        -0.05f,  0.18f, -0.07f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        -0.05f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+         0.05f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+         0.05f,  0.18f, -0.07f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        // Leva strana glave (zaobljena)
+        -0.06f,  0.19f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.06f,  0.19f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.05f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        -0.05f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        // Desna strana glave (zaobljena)
+         0.06f,  0.19f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+         0.05f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+         0.05f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+         0.06f,  0.19f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+        // Vrh glave (zaobljen)
+        -0.05f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 1.0f, 0.0f,
+        -0.05f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 1.0f, 0.0f,
+         0.05f,  0.30f,  0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 1.0f, 0.0f,
+         0.05f,  0.30f, -0.06f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 1.0f, 0.0f,
+        // Vrat (povezuje glavu i trup)
+        -0.03f,  0.18f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, -1.0f, 0.0f,
+         0.03f,  0.18f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, -1.0f, 0.0f,
+         0.03f,  0.18f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, -1.0f, 0.0f,
+        -0.03f,  0.18f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, -1.0f, 0.0f,
     };
     
-    // TRUP
+    // TRUP - prirodnije proporcionisan
     float torsoVertices[] = {
-        // Prednja strana trupa
-        -0.08f, -0.05f,  0.05f,  0.3f, 0.5f, 0.8f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-         0.08f, -0.05f,  0.05f,  0.3f, 0.5f, 0.8f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-         0.08f,  0.20f,  0.05f,  0.3f, 0.5f, 0.8f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-        -0.08f,  0.20f,  0.05f,  0.3f, 0.5f, 0.8f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        // Prednja strana trupa (širok na ramenima)
+        -0.09f, -0.05f,  0.06f,  0.3f, 0.5f, 0.8f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.09f, -0.05f,  0.06f,  0.3f, 0.5f, 0.8f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.09f,  0.17f,  0.05f,  0.3f, 0.5f, 0.8f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        -0.09f,  0.17f,  0.05f,  0.3f, 0.5f, 0.8f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
         // Zadnja strana trupa
-        -0.08f, -0.05f, -0.05f,  0.3f, 0.5f, 0.8f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
-        -0.08f,  0.20f, -0.05f,  0.3f, 0.5f, 0.8f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-         0.08f,  0.20f, -0.05f,  0.3f, 0.5f, 0.8f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-         0.08f, -0.05f, -0.05f,  0.3f, 0.5f, 0.8f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        -0.09f, -0.05f, -0.04f,  0.3f, 0.5f, 0.8f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        -0.09f,  0.17f, -0.04f,  0.3f, 0.5f, 0.8f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+         0.09f,  0.17f, -0.04f,  0.3f, 0.5f, 0.8f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+         0.09f, -0.05f, -0.04f,  0.3f, 0.5f, 0.8f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
         // Leva strana trupa
-        -0.08f, -0.05f, -0.05f,  0.25f, 0.45f, 0.75f, 1.0f,  0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
-        -0.08f, -0.05f,  0.05f,  0.25f, 0.45f, 0.75f, 1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
-        -0.08f,  0.20f,  0.05f,  0.25f, 0.45f, 0.75f, 1.0f,  1.0f, 1.0f, -1.0f, 0.0f, 0.0f,
-        -0.08f,  0.20f, -0.05f,  0.25f, 0.45f, 0.75f, 1.0f,  0.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        -0.09f, -0.05f, -0.04f,  0.28f, 0.48f, 0.78f, 1.0f,  0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.09f, -0.05f,  0.06f,  0.28f, 0.48f, 0.78f, 1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.09f,  0.17f,  0.05f,  0.28f, 0.48f, 0.78f, 1.0f,  1.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        -0.09f,  0.17f, -0.04f,  0.28f, 0.48f, 0.78f, 1.0f,  0.0f, 1.0f, -1.0f, 0.0f, 0.0f,
         // Desna strana trupa
-         0.08f, -0.05f, -0.05f,  0.25f, 0.45f, 0.75f, 1.0f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
-         0.08f,  0.20f, -0.05f,  0.25f, 0.45f, 0.75f, 1.0f,  0.0f, 1.0f,  1.0f, 0.0f, 0.0f,
-         0.08f,  0.20f,  0.05f,  0.25f, 0.45f, 0.75f, 1.0f,  1.0f, 1.0f,  1.0f, 0.0f, 0.0f,
-         0.08f, -0.05f,  0.05f,  0.25f, 0.45f, 0.75f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+         0.09f, -0.05f, -0.04f,  0.28f, 0.48f, 0.78f, 1.0f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+         0.09f,  0.17f, -0.04f,  0.28f, 0.48f, 0.78f, 1.0f,  0.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+         0.09f,  0.17f,  0.05f,  0.28f, 0.48f, 0.78f, 1.0f,  1.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+         0.09f, -0.05f,  0.06f,  0.28f, 0.48f, 0.78f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+        // Gornji deo trupa (ramena)
+        -0.09f,  0.17f, -0.04f,  0.32f, 0.52f, 0.82f, 1.0f,  0.0f, 0.0f,  0.0f, 1.0f, 0.0f,
+        -0.09f,  0.17f,  0.05f,  0.32f, 0.52f, 0.82f, 1.0f,  0.0f, 1.0f,  0.0f, 1.0f, 0.0f,
+         0.09f,  0.17f,  0.05f,  0.32f, 0.52f, 0.82f, 1.0f,  1.0f, 1.0f,  0.0f, 1.0f, 0.0f,
+         0.09f,  0.17f, -0.04f,  0.32f, 0.52f, 0.82f, 1.0f,  1.0f, 0.0f,  0.0f, 1.0f, 0.0f,
+        // Donji deo trupa (struk)
+        -0.09f, -0.05f, -0.04f,  0.28f, 0.48f, 0.78f, 1.0f,  0.0f, 0.0f,  0.0f, -1.0f, 0.0f,
+         0.09f, -0.05f, -0.04f,  0.28f, 0.48f, 0.78f, 1.0f,  1.0f, 0.0f,  0.0f, -1.0f, 0.0f,
+         0.09f, -0.05f,  0.06f,  0.28f, 0.48f, 0.78f, 1.0f,  1.0f, 1.0f,  0.0f, -1.0f, 0.0f,
+        -0.09f, -0.05f,  0.06f,  0.28f, 0.48f, 0.78f, 1.0f,  0.0f, 1.0f,  0.0f, -1.0f, 0.0f,
     };
     
-    // LEVA RUKA
+    // LEVA RUKA - cilindrični oblik
     float leftArmVertices[] = {
-        -0.11f, -0.02f,  0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-        -0.08f, -0.02f,  0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-        -0.08f,  0.18f,  0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-        -0.11f,  0.18f,  0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-        -0.11f, -0.02f, -0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
-        -0.11f,  0.18f, -0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-        -0.08f,  0.18f, -0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-        -0.08f, -0.02f, -0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        // Prednja strana
+        -0.12f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+        -0.09f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+        -0.09f,  0.16f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        -0.12f,  0.16f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        // Zadnja strana
+        -0.12f, -0.04f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        -0.12f,  0.16f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+        -0.09f,  0.16f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+        -0.09f, -0.04f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        // Leva strana
+        -0.12f, -0.04f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.12f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.12f,  0.16f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        -0.12f,  0.16f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        // Desna strana (blizu trupa)
+        -0.09f, -0.04f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+        -0.09f,  0.16f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+        -0.09f,  0.16f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+        -0.09f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
     };
     
-    // DESNA RUKA
+    // DESNA RUKA - cilindrični oblik
     float rightArmVertices[] = {
-         0.08f, -0.02f,  0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-         0.11f, -0.02f,  0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-         0.11f,  0.18f,  0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-         0.08f,  0.18f,  0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-         0.08f, -0.02f, -0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
-         0.08f,  0.18f, -0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-         0.11f,  0.18f, -0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-         0.11f, -0.02f, -0.02f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        // Prednja strana
+         0.09f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.12f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.12f,  0.16f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+         0.09f,  0.16f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        // Zadnja strana
+         0.09f, -0.04f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+         0.09f,  0.16f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+         0.12f,  0.16f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+         0.12f, -0.04f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        // Leva strana (blizu trupa)
+         0.09f, -0.04f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+         0.09f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+         0.09f,  0.16f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+         0.09f,  0.16f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        // Desna strana
+         0.12f, -0.04f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+         0.12f,  0.16f, -0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+         0.12f,  0.16f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+         0.12f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
     };
     
-    // LEVA NOGA
+    // LEVA NOGA - cilindrični oblik
     float leftLegVertices[] = {
-        -0.07f, -0.30f,  0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-        -0.02f, -0.30f,  0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-        -0.02f, -0.05f,  0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-        -0.07f, -0.05f,  0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-        -0.07f, -0.30f, -0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
-        -0.07f, -0.05f, -0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-        -0.02f, -0.05f, -0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-        -0.02f, -0.30f, -0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        // Prednja strana
+        -0.06f, -0.28f,  0.04f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+        -0.02f, -0.28f,  0.04f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+        -0.02f, -0.05f,  0.04f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        -0.06f, -0.05f,  0.04f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        // Zadnja strana
+        -0.06f, -0.28f, -0.02f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        -0.06f, -0.05f, -0.02f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+        -0.02f, -0.05f, -0.02f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+        -0.02f, -0.28f, -0.02f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        // Leva strana
+        -0.06f, -0.28f, -0.02f,  0.18f, 0.18f, 0.58f, 1.0f,  0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.06f, -0.28f,  0.04f,  0.18f, 0.18f, 0.58f, 1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.06f, -0.05f,  0.04f,  0.18f, 0.18f, 0.58f, 1.0f,  1.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        -0.06f, -0.05f, -0.02f,  0.18f, 0.18f, 0.58f, 1.0f,  0.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        // Desna strana
+        -0.02f, -0.28f, -0.02f,  0.18f, 0.18f, 0.58f, 1.0f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+        -0.02f, -0.05f, -0.02f,  0.18f, 0.18f, 0.58f, 1.0f,  0.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+        -0.02f, -0.05f,  0.04f,  0.18f, 0.18f, 0.58f, 1.0f,  1.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+        -0.02f, -0.28f,  0.04f,  0.18f, 0.18f, 0.58f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
     };
     
-    // DESNA NOGA
+    // DESNA NOGA - cilindrični oblik
     float rightLegVertices[] = {
-         0.02f, -0.30f,  0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-         0.07f, -0.30f,  0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-         0.07f, -0.05f,  0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-         0.02f, -0.05f,  0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-         0.02f, -0.30f, -0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
-         0.02f, -0.05f, -0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-         0.07f, -0.05f, -0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
-         0.07f, -0.30f, -0.03f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        // Prednja strana
+         0.02f, -0.28f,  0.04f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.06f, -0.28f,  0.04f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.06f, -0.05f,  0.04f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+         0.02f, -0.05f,  0.04f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        // Zadnja strana
+         0.02f, -0.28f, -0.02f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+         0.02f, -0.05f, -0.02f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+         0.06f, -0.05f, -0.02f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+         0.06f, -0.28f, -0.02f,  0.2f, 0.2f, 0.6f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        // Leva strana
+         0.02f, -0.28f, -0.02f,  0.18f, 0.18f, 0.58f, 1.0f,  0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+         0.02f, -0.28f,  0.04f,  0.18f, 0.18f, 0.58f, 1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+         0.02f, -0.05f,  0.04f,  0.18f, 0.18f, 0.58f, 1.0f,  1.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+         0.02f, -0.05f, -0.02f,  0.18f, 0.18f, 0.58f, 1.0f,  0.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        // Desna strana
+         0.06f, -0.28f, -0.02f,  0.18f, 0.18f, 0.58f, 1.0f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+         0.06f, -0.05f, -0.02f,  0.18f, 0.18f, 0.58f, 1.0f,  0.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+         0.06f, -0.05f,  0.04f,  0.18f, 0.18f, 0.58f, 1.0f,  1.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+         0.06f, -0.28f,  0.04f,  0.18f, 0.18f, 0.58f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
     };
     
-    // KAPICA (za kontrolora) - vrh glave
+    // KOSA (za obične putnike) - jednostavna frizura
+    float hairVertices[] = {
+        // Gornji deo kose (pokriva vrh glave)
+        -0.06f,  0.30f,  0.08f,  0.2f, 0.15f, 0.1f, 1.0f,  0.0f, 0.0f,  0.0f, 1.0f, 0.0f,
+         0.06f,  0.30f,  0.08f,  0.2f, 0.15f, 0.1f, 1.0f,  1.0f, 0.0f,  0.0f, 1.0f, 0.0f,
+         0.06f,  0.35f, -0.08f,  0.2f, 0.15f, 0.1f, 1.0f,  1.0f, 1.0f,  0.0f, 1.0f, 0.0f,
+        -0.06f,  0.35f, -0.08f,  0.2f, 0.15f, 0.1f, 1.0f,  0.0f, 1.0f,  0.0f, 1.0f, 0.0f,
+        // Prednji deo kose (šiške)
+        -0.06f,  0.28f,  0.09f,  0.2f, 0.15f, 0.1f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.06f,  0.28f,  0.09f,  0.2f, 0.15f, 0.1f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.06f,  0.32f,  0.08f,  0.2f, 0.15f, 0.1f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        -0.06f,  0.32f,  0.08f,  0.2f, 0.15f, 0.1f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        // Leva strana kose
+        -0.07f,  0.28f, -0.06f,  0.2f, 0.15f, 0.1f, 1.0f,  0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.07f,  0.28f,  0.06f,  0.2f, 0.15f, 0.1f, 1.0f,  1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.06f,  0.34f,  0.06f,  0.2f, 0.15f, 0.1f, 1.0f,  1.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        -0.06f,  0.34f, -0.06f,  0.2f, 0.15f, 0.1f, 1.0f,  0.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        // Desna strana kose
+         0.07f,  0.28f, -0.06f,  0.2f, 0.15f, 0.1f, 1.0f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+         0.06f,  0.34f, -0.06f,  0.2f, 0.15f, 0.1f, 1.0f,  0.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+         0.06f,  0.34f,  0.06f,  0.2f, 0.15f, 0.1f, 1.0f,  1.0f, 1.0f,  1.0f, 0.0f, 0.0f,
+         0.07f,  0.28f,  0.06f,  0.2f, 0.15f, 0.1f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+        // Zadnji deo kose
+        -0.06f,  0.30f, -0.08f,  0.2f, 0.15f, 0.1f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+        -0.06f,  0.34f, -0.08f,  0.2f, 0.15f, 0.1f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+         0.06f,  0.34f, -0.08f,  0.2f, 0.15f, 0.1f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, -1.0f,
+         0.06f,  0.30f, -0.08f,  0.2f, 0.15f, 0.1f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, -1.0f,
+    };
+    
+    // KAPICA (za kontrolora) - policijska šilterica
     float capVertices[] = {
-        // Vrh kapice
-        -0.08f,  0.30f,  0.08f,  0.1f, 0.1f, 0.1f, 1.0f,  0.0f, 0.0f,  0.0f, 1.0f, 0.0f,
-         0.08f,  0.30f,  0.08f,  0.1f, 0.1f, 0.1f, 1.0f,  1.0f, 0.0f,  0.0f, 1.0f, 0.0f,
-         0.08f,  0.35f,  0.0f,   0.1f, 0.1f, 0.1f, 1.0f,  1.0f, 1.0f,  0.0f, 1.0f, 0.0f,
-        -0.08f,  0.35f,  0.0f,   0.1f, 0.1f, 0.1f, 1.0f,  0.0f, 1.0f,  0.0f, 1.0f, 0.0f,
+        // Vrh kapice (glavni deo)
+        -0.07f,  0.30f,  0.07f,  0.05f, 0.05f, 0.1f, 1.0f,  0.0f, 0.0f,  0.0f, 1.0f, 0.0f,
+         0.07f,  0.30f,  0.07f,  0.05f, 0.05f, 0.1f, 1.0f,  1.0f, 0.0f,  0.0f, 1.0f, 0.0f,
+         0.07f,  0.33f,  0.0f,   0.05f, 0.05f, 0.1f, 1.0f,  1.0f, 1.0f,  0.0f, 1.0f, 0.0f,
+        -0.07f,  0.33f,  0.0f,   0.05f, 0.05f, 0.1f, 1.0f,  0.0f, 1.0f,  0.0f, 1.0f, 0.0f,
         // Prednja strana kapice
-        -0.08f,  0.30f,  0.08f,  0.1f, 0.1f, 0.1f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-        -0.08f,  0.35f,  0.0f,   0.1f, 0.1f, 0.1f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-         0.08f,  0.35f,  0.0f,   0.1f, 0.1f, 0.1f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-         0.08f,  0.30f,  0.08f,  0.1f, 0.1f, 0.1f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-        // Štitnik kapice (ispred)
-        -0.08f,  0.30f,  0.08f,  0.05f, 0.05f, 0.05f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-         0.08f,  0.30f,  0.08f,  0.05f, 0.05f, 0.05f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
-         0.08f,  0.28f,  0.15f,  0.05f, 0.05f, 0.05f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
-        -0.08f,  0.28f,  0.15f,  0.05f, 0.05f, 0.05f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        -0.07f,  0.30f,  0.07f,  0.05f, 0.05f, 0.1f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+        -0.07f,  0.33f,  0.0f,   0.05f, 0.05f, 0.1f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+         0.07f,  0.33f,  0.0f,   0.05f, 0.05f, 0.1f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+         0.07f,  0.30f,  0.07f,  0.05f, 0.05f, 0.1f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+        // Šilterica (štitnik kapice)
+        -0.09f,  0.28f,  0.08f,  0.02f, 0.02f, 0.05f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.09f,  0.28f,  0.08f,  0.02f, 0.02f, 0.05f, 1.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f,
+         0.09f,  0.27f,  0.16f,  0.02f, 0.02f, 0.05f, 1.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        -0.09f,  0.27f,  0.16f,  0.02f, 0.02f, 0.05f, 1.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f,
+        // Donji deo štitnika
+        -0.09f,  0.27f,  0.16f,  0.02f, 0.02f, 0.05f, 1.0f,  0.0f, 0.0f,  0.0f, -1.0f, 0.0f,
+         0.09f,  0.27f,  0.16f,  0.02f, 0.02f, 0.05f, 1.0f,  1.0f, 0.0f,  0.0f, -1.0f, 0.0f,
+         0.09f,  0.28f,  0.08f,  0.02f, 0.02f, 0.05f, 1.0f,  1.0f, 1.0f,  0.0f, -1.0f, 0.0f,
+        -0.09f,  0.28f,  0.08f,  0.02f, 0.02f, 0.05f, 1.0f,  0.0f, 1.0f,  0.0f, -1.0f, 0.0f,
     };
     
-    // Kombinuj sve delove u jedan buffer
+    // Kombinuj sve delove u jedan buffer - BEZ KAPICE (kapica se renderuje zasebno)
     for (int i = 0; i < sizeof(headVertices) / sizeof(float); i++) humanoidVertices.push_back(headVertices[i]);
     for (int i = 0; i < sizeof(torsoVertices) / sizeof(float); i++) humanoidVertices.push_back(torsoVertices[i]);
     for (int i = 0; i < sizeof(leftArmVertices) / sizeof(float); i++) humanoidVertices.push_back(leftArmVertices[i]);
     for (int i = 0; i < sizeof(rightArmVertices) / sizeof(float); i++) humanoidVertices.push_back(rightArmVertices[i]);
     for (int i = 0; i < sizeof(leftLegVertices) / sizeof(float); i++) humanoidVertices.push_back(leftLegVertices[i]);
     for (int i = 0; i < sizeof(rightLegVertices) / sizeof(float); i++) humanoidVertices.push_back(rightLegVertices[i]);
-    for (int i = 0; i < sizeof(capVertices) / sizeof(float); i++) humanoidVertices.push_back(capVertices[i]);
+    // KAPICA SE NE DODAJE OVDE - renderuje se zasebno samo za kontrolora
 
     unsigned int humanoidVAO, humanoidVBO;
     glGenVertexArrays(1, &humanoidVAO);
@@ -1217,6 +1324,56 @@ int main()
 
     glBindVertexArray(0);
 
+    // ========== VAO ZA KOSU (ZA OBIČNE PUTNIKE) ==========
+    std::vector<float> hairOnlyVertices;
+    for (int i = 0; i < sizeof(hairVertices) / sizeof(float); i++) {
+        hairOnlyVertices.push_back(hairVertices[i]);
+    }
+    
+    unsigned int hairVAO, hairVBO;
+    glGenVertexArrays(1, &hairVAO);
+    glGenBuffers(1, &hairVBO);
+    
+    glBindVertexArray(hairVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, hairVBO);
+    glBufferData(GL_ARRAY_BUFFER, hairOnlyVertices.size() * sizeof(float), hairOnlyVertices.data(), GL_STATIC_DRAW);
+    
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(7 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, stride, (void*)(10 * sizeof(float)));
+    glEnableVertexAttribArray(3);
+    
+    glBindVertexArray(0);
+
+    // ========== VAO ZA KAPICU (SAMO ZA KONTROLORA) ==========
+    std::vector<float> capOnlyVertices;
+    for (int i = 0; i < sizeof(capVertices) / sizeof(float); i++) {
+        capOnlyVertices.push_back(capVertices[i]);
+    }
+    
+    unsigned int capVAO, capVBO;
+    glGenVertexArrays(1, &capVAO);
+    glGenBuffers(1, &capVBO);
+    
+    glBindVertexArray(capVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, capVBO);
+    glBufferData(GL_ARRAY_BUFFER, capOnlyVertices.size() * sizeof(float), capOnlyVertices.data(), GL_STATIC_DRAW);
+    
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(7 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, stride, (void*)(10 * sizeof(float)));
+    glEnableVertexAttribArray(3);
+    
+    glBindVertexArray(0);
+
     // ========== INICIJALIZACIJA ==========
     initStations();
     setupPathVAO();
@@ -1229,8 +1386,12 @@ int main()
     glm::vec3 cameraPos = glm::vec3(0.0, 0.0, 0.15);
     glm::vec3 cameraUp = glm::vec3(0.0, 1.0, 0.0);
     
+    // ========== PHONG LIGHTING SETUP ==========
+    // Pozicija svetla (UNUTAR autobusa - u centru plafona)
     glm::vec3 lightPos = glm::vec3(0.0f, 0.4f, 0.0f);
-    glm::vec3 lightColor = glm::vec3(1.0f, 0.95f, 0.8f);
+    
+    // Boja svetla (neutralna bela svetlost - kao sijalica u autobusu)
+    glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 0.95f);
     
     auto lastTime = std::chrono::high_resolution_clock::now();
 
@@ -1542,59 +1703,137 @@ int main()
             glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
         }
 
-        // Crtanje putnika (humanoidan oblik)
+        // Crtanje putnika (humanoidan oblik - poboljšan sa animacijom hodanja)
         glBindVertexArray(humanoidVAO);
-        glUniform1i(glGetUniformLocation(shader3D, "useCustomColor"), true);
         
         for (const auto& p : activePassengers) {
             glm::mat4 passengerModel = shakeModel;
             passengerModel = glm::translate(passengerModel, p.position);
             
+            // ROTACIJA PREMA PRAVCU KRETANJA - putnici gledaju u pravcu hodanja
+            if (p.isMoving) {
+                glm::vec3 direction = glm::normalize(p.targetPosition - p.position);
+                // Izračunaj ugao rotacije (atan2 za ugao između pravca i Z ose)
+                float angle = atan2(direction.x, direction.z);
+                // Rotiraj putnika oko Y ose (vertikalno) da gleda ka target poziciji
+                passengerModel = glm::rotate(passengerModel, angle, glm::vec3(0.0f, 1.0f, 0.0f));
+            } else {
+                // Kada stoji, gleda ka unutrašnjosti autobusa (default rotacija)
+                passengerModel = glm::rotate(passengerModel, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            }
+            
             glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(passengerModel));
             
-            // Uniforma za inspektora (ne menja boje u shaderu)
-            glUniform1i(glGetUniformLocation(shader3D, "isInspector"), 0);
+            // OMOGUCI useCustomColor ZA SVE DELOVE PUTNIKA (ne samo za torso)
+            glUniform1i(glGetUniformLocation(shader3D, "useCustomColor"), 1);
             
-            // Skin tone boja za glavu i ruke
+            // Skin tone boja za glavu, vrat
             glm::vec3 skinColor = glm::vec3(1.0f, 0.85f, 0.7f);
-            glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(skinColor));
             
-            // Glava (6 strana x 4 vertices = 6 faces)
-            for (int i = 0; i < 6; ++i) {
+            // Glava (6 strana) + vrat (1 strana) = 7 faces - SKIN TONE
+            glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(skinColor));
+            for (int i = 0; i < 7; ++i) {
                 glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
             }
             
-            // Trup - koristi shirt boju
+            // Trup - koristi SHIRT boju (custom boja po putniku) - 6 faces
             glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(p.shirtColor));
-            for (int i = 6; i < 10; ++i) {
+            for (int i = 7; i < 13; ++i) {
                 glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
             }
             
-            // Ruke - skin tone
-            glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(skinColor));
-            for (int i = 10; i < 12; ++i) {
-                glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
-            }
-            for (int i = 12; i < 14; ++i) {
+            // Leva ruka - SHIRT boja (rukavi majice) - 4 strane
+            glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(p.shirtColor));
+            for (int i = 13; i < 17; ++i) {
                 glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
             }
             
-            // Noge - koristi pants boju
+            // Desna ruka - SHIRT boja (rukavi majice) - 4 strane
+            glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(p.shirtColor));
+            for (int i = 17; i < 21; ++i) {
+                glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
+            }
+            
+            // ========== ANIMACIJA HODANJA - NOGE (SA ROTACIJOM) ==========
+            // Leva noga - koristi pants boju (4 strane) + prirodna animacija hodanja
             glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(p.pantsColor));
-            for (int i = 14; i < 16; ++i) {
-                glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
-            }
-            for (int i = 16; i < 18; ++i) {
-                glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
-            }
             
-            // Kapica - samo za kontrolora (crna)
-            if (p.isInspector) {
-                glm::vec3 capColor = glm::vec3(0.05f, 0.05f, 0.05f);
-                glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(capColor));
-                for (int i = 18; i < 21; ++i) {
+            if (p.isMoving) {
+                // Leva noga - rotira se oko kuka (gornjeg dela noge) - ugao rotacije
+                float leftLegAngle = sin(p.walkAnimTime) * 25.0f;  // Max 25 stepeni napred/nazad
+                glm::vec3 hipPivot = glm::vec3(-0.04f, -0.05f, 0.01f);  // Pozicija kuka (gornji deo leve noge)
+                
+                glm::mat4 leftLegModel = passengerModel;  // VEĆ ROTIRANO prema pravcu kretanja!
+                leftLegModel = glm::translate(leftLegModel, hipPivot);  // Pomeri do kuka
+                leftLegModel = glm::rotate(leftLegModel, glm::radians(leftLegAngle), glm::vec3(1.0f, 0.0f, 0.0f));  // Rotiraj oko X-ose
+                leftLegModel = glm::translate(leftLegModel, -hipPivot);  // Vrati nazad
+                glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(leftLegModel));
+                
+                for (int i = 21; i < 25; ++i) {
                     glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
                 }
+                
+                // Desna noga - rotira se u suprotnu stranu (prirodno hodanje)
+                float rightLegAngle = -sin(p.walkAnimTime) * 25.0f;  // Suprotna faza
+                glm::vec3 hipPivotRight = glm::vec3(0.04f, -0.05f, 0.01f);  // Pozicija desnog kuka
+                
+                glm::mat4 rightLegModel = passengerModel;  // VEĆ ROTIRANO prema pravcu kretanja!
+                rightLegModel = glm::translate(rightLegModel, hipPivotRight);  // Pomeri do kuka
+                rightLegModel = glm::rotate(rightLegModel, glm::radians(rightLegAngle), glm::vec3(1.0f, 0.0f, 0.0f));  // Rotiraj oko X-ose
+                rightLegModel = glm::translate(rightLegModel, -hipPivotRight);  // Vrati nazad
+                glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(rightLegModel));
+                
+                for (int i = 25; i < 29; ++i) {
+                    glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
+                }
+            } else {
+                // Kada stoji, noge su statične (bez rotacije) - ALI SA rotacijom tela!
+                glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(passengerModel));
+                for (int i = 21; i < 25; ++i) {
+                    glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
+                }
+                for (int i = 25; i < 29; ++i) {
+                    glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
+                }
+            }
+            
+            // KOSA ili KAPICA - zavisi da li je kontrolor ili običan putnik
+            if (p.isInspector) {
+                // KAPICA - SAMO za kontrolora (zasebni VAO - 4 faces)
+                // Vrati model matricu na osnovnu poziciju putnika
+                glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(passengerModel));
+                
+                // Prebaci se na capVAO (zasebni buffer za kapicu)
+                glBindVertexArray(capVAO);
+                
+                glm::vec3 capColor = glm::vec3(0.02f, 0.02f, 0.08f);  // Tamnoplava
+                glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(capColor));
+                
+                // Crtaj sve 4 face kapice (0-3 iz capVAO buffer-a)
+                for (int i = 0; i < 4; ++i) {
+                    glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
+                }
+                
+                // Vrati se na humanoidVAO za sledeće putnike
+                glBindVertexArray(humanoidVAO);
+            } else {
+                // KOSA - za obične putnike (hairVAO - 5 faces)
+                // Vrati model matricu na osnovnu poziciju putnika
+                glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(passengerModel));
+                
+                // Prebaci se na hairVAO (zasebni buffer za kosu)
+                glBindVertexArray(hairVAO);
+                
+                // Koristi hair boju putnika (random)
+                glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(p.hairColor));
+                
+                // Crtaj sve 5 faces kose (0-4 iz hairVAO buffer-a)
+                for (int i = 0; i < 5; ++i) {
+                    glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
+                }
+                
+                // Vrati se na humanoidVAO za sledeće putnike
+                glBindVertexArray(humanoidVAO);
             }
         }
         
@@ -1645,6 +1884,10 @@ int main()
     glDeleteBuffers(1, &VBO3D);
     glDeleteVertexArrays(1, &humanoidVAO);
     glDeleteBuffers(1, &humanoidVBO);
+    glDeleteVertexArrays(1, &hairVAO);
+    glDeleteBuffers(1, &hairVBO);
+    glDeleteVertexArrays(1, &capVAO);
+    glDeleteBuffers(1, &capVBO);
     glDeleteVertexArrays(1, &pathVAO);
     glDeleteBuffers(1, &pathVBO);
     glDeleteVertexArrays(1, &circleVAO);

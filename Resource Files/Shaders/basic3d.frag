@@ -22,29 +22,39 @@ void main()
     vec3 norm = normalize(channelNormal);
     vec3 lightDir = normalize(uLightPos - channelFragPos);
     
-    // Ambient
-    float ambientStrength = 0.3;
+    // ========== PHONG LIGHTING MODEL ==========
+    
+    // 1. AMBIENT - osnovno osvetljenje (pove?ano za svetliju unutrašnjost)
+    float ambientStrength = 0.35;  // Pove?ano sa 0.15 na 0.35 za svetliju unutrašnjost
     vec3 ambient = ambientStrength * uLightColor;
     
-    // Diffuse
+    // 2. DIFFUSE - difuzno rasejanje svetla (glavni izvor)
     float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = diff * uLightColor;
+    vec3 diffuse = diff * uLightColor * 0.8;  // 0.8 faktor za prirodniji izgled
     
-    // Specular
-    float specularStrength = 0.5;
+    // 3. SPECULAR - odsjaj (Phong refleksioni model)
+    float specularStrength = 0.7;  // Pove?ano sa 0.5 na 0.7 za ja?i odsjaj
     vec3 viewDir = normalize(uViewPos - channelFragPos);
     vec3 reflectDir = reflect(-lightDir, norm);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
+    
+    // Shininess = 64 (srednja vrednost, daje lep odsjaj)
+    // Ve?e vrednosti (128, 256) = sjajnije površine (metal, staklo)
+    // Niže vrednosti (16, 32) = matnije površine (drvo, guma)
+    float shininess = 64.0;
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
     vec3 specular = specularStrength * spec * uLightColor;
     
+    // Kombinuj sve komponente
     vec3 lighting = ambient + diffuse + specular;
     
     if (!useTex) {
-        vec3 color = channelCol.rgb;
+        vec3 color;
         
-        // Koristi custom boju ako je postavljena
+        // PRVO proveri useCustomColor - ignorise vertex boju potpuno
         if (useCustomColor) {
-            color = uCustomColor;
+            color = uCustomColor;  // Koristi uniform boju (ignorise vertex boju)
+        } else {
+            color = channelCol.rgb;  // Koristi vertex boju samo ako useCustomColor je false
         }
         
         // Oboji crveno ako je inspektor (override)
