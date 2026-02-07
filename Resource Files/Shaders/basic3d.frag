@@ -1,5 +1,20 @@
 #version 330 core
 
+// ========== PHONG LIGHTING STRUCTS (iz V10 vežbi) ==========
+struct Light {
+    vec3 pos;       // Pozicija svetla
+    vec3 kA;        // Ambijentalna komponenta
+    vec3 kD;        // Difuzna komponenta
+    vec3 kS;        // Spekularna komponenta
+};
+
+struct Material {
+    vec3 kA;        // Ambijentalna refleksija materijala
+    vec3 kD;        // Difuzna refleksija materijala
+    vec3 kS;        // Spekularna refleksija materijala
+    float shine;    // Shininess (ugla?anost)
+};
+
 in vec4 channelCol;
 in vec2 channelTex;
 in vec3 channelNormal;
@@ -10,9 +25,13 @@ out vec4 outCol;
 uniform sampler2D uTex;
 uniform bool useTex;
 uniform bool transparent;
-uniform vec3 uLightPos;
-uniform vec3 uLightColor;
+
+// Phong lighting uniforms (strukture)
+uniform Light uLight;
+uniform Material uMaterial;
 uniform vec3 uViewPos;
+
+// Custom uniforms
 uniform int isInspector;
 uniform vec3 uCustomColor;
 uniform bool useCustomColor;
@@ -20,31 +39,24 @@ uniform bool useCustomColor;
 void main()
 {
     vec3 norm = normalize(channelNormal);
-    vec3 lightDir = normalize(uLightPos - channelFragPos);
+    vec3 lightDir = normalize(uLight.pos - channelFragPos);
     
-    // ========== PHONG LIGHTING MODEL ==========
+    // ========== PHONG LIGHTING MODEL (identi?no V10 vežbama) ==========
     
-    // 1. AMBIENT - osnovno osvetljenje (pove?ano za svetliju unutrašnjost)
-    float ambientStrength = 0.35;  // Pove?ano sa 0.15 na 0.35 za svetliju unutrašnjost
-    vec3 ambient = ambientStrength * uLightColor;
+    // 1. AMBIENT - ambijentalna komponenta (osnovno osvetljenje)
+    vec3 ambient = uLight.kA * uMaterial.kA;
     
-    // 2. DIFFUSE - difuzno rasejanje svetla (glavni izvor)
-    float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = diff * uLightColor * 0.8;  // 0.8 faktor za prirodniji izgled
+    // 2. DIFFUSE - difuzna komponenta (direktno svetlo)
+    float nD = max(dot(norm, lightDir), 0.0);
+    vec3 diffuse = uLight.kD * (nD * uMaterial.kD);
     
-    // 3. SPECULAR - odsjaj (Phong refleksioni model)
-    float specularStrength = 0.7;  // Pove?ano sa 0.5 na 0.7 za ja?i odsjaj
+    // 3. SPECULAR - spekularna komponenta (odsjaj)
     vec3 viewDir = normalize(uViewPos - channelFragPos);
     vec3 reflectDir = reflect(-lightDir, norm);
+    float s = pow(max(dot(viewDir, reflectDir), 0.0), uMaterial.shine);
+    vec3 specular = uLight.kS * (s * uMaterial.kS);
     
-    // Shininess = 64 (srednja vrednost, daje lep odsjaj)
-    // Ve?e vrednosti (128, 256) = sjajnije površine (metal, staklo)
-    // Niže vrednosti (16, 32) = matnije površine (drvo, guma)
-    float shininess = 64.0;
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
-    vec3 specular = specularStrength * spec * uLightColor;
-    
-    // Kombinuj sve komponente
+    // Kombinuj sve komponente (Phong model)
     vec3 lighting = ambient + diffuse + specular;
     
     if (!useTex) {

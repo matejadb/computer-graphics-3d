@@ -103,11 +103,15 @@ std::vector<Passenger> activePassengers;
 bool passengerEntering = false;
 bool passengerExiting = false;
 float passengerAnimTimer = 0.0f;
-const float passengerAnimDuration = 0.8f;  // Brže ulazenje - 0.8s umesto 2s
+const float passengerAnimDuration = 0.8f;
 
-// Stanje depth testa i face cullinga (kontrolisano tasterima)
 bool depthTestEnabled = true;
 bool faceCullingEnabled = false;
+
+bool key1Pressed = false;
+bool key2Pressed = false;
+bool key3Pressed = false;
+bool key4Pressed = false;
 
 // Framebuffer za 2D display
 unsigned int displayFBO = 0;
@@ -130,16 +134,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_K && action == GLFW_PRESS) {
         keyKPressed = true;
     }
-    if (key == GLFW_KEY_O && action == GLFW_PRESS) {
-        if (doorOffset < doorMaxOffset && !doorClosing) {
-            doorOpening = true;
-            doorClosing = false;
-        }
-        else if (doorOffset >= doorMaxOffset || doorOpening) {
-            doorOpening = false;
-            doorClosing = true;
-        }
-    }
+    // UKLONJENA MANUALNA KONTROLA VRATA (O taster) - samo automatski rad
 }
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
@@ -337,7 +332,6 @@ void renderCircle(float x, float y, float radius, float r, float g, float b, uns
 void setupRoad3D() {
     std::vector<float> roadVertices;
     
-    // Kreiranje puta ispod autobusa 
     float roadWidth = 50.0f;
     float roadStart = 50.0f;
     float roadEnd = -ROAD_LENGTH;
@@ -351,7 +345,7 @@ void setupRoad3D() {
         -roadWidth / 2, -1.2f, roadEnd,     0.3f, 0.3f, 0.3f, 1.0f,   0.0f, 1.0f,   0.0f, 1.0f, 0.0f,
     });
     
-    // Bela linija (centralna) - malo iznad asfalta
+    // Bela linija
     roadVertices.insert(roadVertices.end(), {
         -0.1f, -1.19f, roadStart,   1.0f, 1.0f, 1.0f, 1.0f,   0.0f, 0.0f,   0.0f, 1.0f, 0.0f,
          0.1f, -1.19f, roadStart,   1.0f, 1.0f, 1.0f, 1.0f,   1.0f, 0.0f,   0.0f, 1.0f, 0.0f,
@@ -359,7 +353,7 @@ void setupRoad3D() {
         -0.1f, -1.19f, roadEnd,     1.0f, 1.0f, 1.0f, 1.0f,   0.0f, 1.0f,   0.0f, 1.0f, 0.0f,
     });
     
-    // Trava sa leve strane - sire
+    // Trava sa leve strane
     roadVertices.insert(roadVertices.end(), {
         -500.0f, -1.2f, roadStart,   0.2f, 0.6f, 0.2f, 1.0f,   0.0f, 0.0f,   0.0f, 1.0f, 0.0f,
         -roadWidth / 2, -1.2f, roadStart,   0.2f, 0.6f, 0.2f, 1.0f,   1.0f, 0.0f,   0.0f, 1.0f, 0.0f,
@@ -367,7 +361,7 @@ void setupRoad3D() {
         -500.0f, -1.2f, roadEnd,     0.2f, 0.6f, 0.2f, 1.0f,   0.0f, 1.0f,   0.0f, 1.0f, 0.0f,
     });
     
-    // Trava sa desne strane - sire
+    // Trava sa desne strane
     roadVertices.insert(roadVertices.end(), {
          roadWidth / 2, -1.2f, roadStart,   0.2f, 0.6f, 0.2f, 1.0f,   0.0f, 0.0f,   0.0f, 1.0f, 0.0f,
          500.0f, -1.2f, roadStart,   0.2f, 0.6f, 0.2f, 1.0f,   1.0f, 0.0f,   0.0f, 1.0f, 0.0f,
@@ -531,7 +525,6 @@ glViewport(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 glClearColor(0.15f, 0.2f, 0.25f, 1.0f);
 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-// PRIVREMENO iskljuci depth test samo za 2D renderovanje u framebuffer
 GLboolean depthTestWasEnabled = glIsEnabled(GL_DEPTH_TEST);
 glDisable(GL_DEPTH_TEST);
 
@@ -620,7 +613,6 @@ glBindVertexArray(VAO2D);
         renderTexture(controlTexture, 0.85f, 0.75f, 0.12f, 0.12f, 1.0f, shader2D, VAO2D);
     }
 
-    // VRATI prethodno stanje depth testa
     if (depthTestWasEnabled) {
         glEnable(GL_DEPTH_TEST);
     }
@@ -630,13 +622,10 @@ glBindVertexArray(VAO2D);
 
 void addPassenger(bool isInsp = false) {
     Passenger p;
-    // WAYPOINT 0: Pocetna pozicija - van autobusa DIREKTNO ISPRED VRATA
-    p.position = glm::vec3(1.2f, -0.3f, -0.075f);  // Direktno ispred vrata (centralno)
+    p.position = glm::vec3(1.2f, -0.3f, -0.075f);
     
-    // WAYPOINT 1: Pozicija u pragu vrata (ulazi pravo)
-    p.targetPosition = glm::vec3(1.05f, -0.3f, -0.075f);  // U pragu vrata
+    p.targetPosition = glm::vec3(1.05f, -0.3f, -0.075f); 
     
-    // Konačna pozicija - pozadi vozaca (grid raspored)
     int rowOffset = activePassengers.size() / 4;
     int colOffset = activePassengers.size() % 4;
     
@@ -646,17 +635,15 @@ void addPassenger(bool isInsp = false) {
         0.8f + rowOffset * 0.4f     // Pozadi vozača
     );
     
-    p.moveSpeed = 1.2f;  // Brža brzina
+    p.moveSpeed = 1.2f;
     p.isMoving = true;
-    p.waypointIndex = 0;  // Počinje od waypoint-a 0
+    p.waypointIndex = 0; 
     p.characterModel = isInsp ? 15 : (rand() % 15);
     p.isInspector = isInsp;
     
-    // Random boje za putnike, kontrolor ima uniformu
     if (isInsp) {
         p.shirtColor = glm::vec3(0.1f, 0.1f, 0.1f);
         p.pantsColor = glm::vec3(0.05f, 0.05f, 0.05f);
-        // Kontrolor nema kosu (ima kapicu)
     } else {
         p.shirtColor = glm::vec3(
             0.2f + (rand() % 80) / 100.0f,
@@ -701,9 +688,7 @@ void removePassenger(bool removeInspector = false) {
     }
     
     if (removeIdx >= 0) {
-        // Postavi waypoint za izlazak (obrnuti redosled od ulaska)
-        activePassengers[removeIdx].waypointIndex = 10;  // Počinje izlazak (sa sedišta)
-        // Prvo ide u centar hodnika (biće izračunato u updatePassengers)
+        activePassengers[removeIdx].waypointIndex = 10;
         activePassengers[removeIdx].isMoving = true;
     }
 }
@@ -714,77 +699,63 @@ void updatePassengers(float dt) {
             glm::vec3 direction = it->targetPosition - it->position;
             float distance = glm::length(direction);
             
-            // Animacija hodanja - povećava vreme animacije dok se kreće
-            it->walkAnimTime += dt * 8.0f;  // Brzina animacije hodanja
+            it->walkAnimTime += dt * 8.0f;
             
             if (distance < 0.05f) {
                 // Stigao do trenutnog waypoint-a
                 it->position = it->targetPosition;
                 
-                // ULAZAK U AUTOBUS (waypoint 0-3) - PRAVO KROZ VRATA
+                // ULAZAK U AUTOBUS
                 if (it->waypointIndex == 0) {
-                    // U pragu vrata → idi unutra (pravo kroz vrata, samo X se menja)
                     it->waypointIndex = 1;
-                    it->targetPosition = glm::vec3(0.85f, -0.3f, -0.075f);  // Unutra, pravo
+                    it->targetPosition = glm::vec3(0.85f, -0.3f, -0.075f);
                 }
                 else if (it->waypointIndex == 1) {
-                    // Unutra od vrata → idi u hodnik (počinje bočno kretanje ka sedištu)
                     it->waypointIndex = 2;
-                    // Sada može da se pomera bočno ka svom sedištu
                     float centerZ = (it->finalPosition.z - 0.075f) / 2.0f - 0.075f;
-                    it->targetPosition = glm::vec3(0.7f, -0.3f, centerZ);  // Pomeraj se ka sedištu
+                    it->targetPosition = glm::vec3(0.7f, -0.3f, centerZ);
                 }
                 else if (it->waypointIndex == 2) {
-                    // U hodniku → idi ka sedištu (direktno)
                     it->waypointIndex = 3;
                     it->targetPosition = it->finalPosition;
                 }
                 else if (it->waypointIndex == 3) {
-                    // Stigao na sedište → STANI
                     it->isMoving = false;
                     it->walkAnimTime = 0.0f;  // Resetuj animaciju kada stane
                 }
                 
-                // IZLAZAK IZ AUTOBUSA (waypoint 10-13) - PRAVO KROZ VRATA
+                // IZLAZAK IZ AUTOBUSA
                 else if (it->waypointIndex == 10) {
-                    // Sa sedišta → idi ka hodniku (sredina puta)
                     it->waypointIndex = 11;
                     float centerZ = (it->position.z - 0.075f) / 2.0f - 0.075f;
-                    it->targetPosition = glm::vec3(0.7f, -0.3f, centerZ);  // Hodnik
+                    it->targetPosition = glm::vec3(0.7f, -0.3f, centerZ); 
                 }
                 else if (it->waypointIndex == 11) {
-                    // Iz hodnika → idi ka vratima (centralno, direktno)
                     it->waypointIndex = 12;
-                    it->targetPosition = glm::vec3(0.85f, -0.3f, -0.075f);  // Kod vrata, centralno
+                    it->targetPosition = glm::vec3(0.85f, -0.3f, -0.075f); 
                 }
                 else if (it->waypointIndex == 12) {
-                    // Kod vrata (unutra) → idi u prag vrata (pravo napolje)
                     it->waypointIndex = 13;
-                    it->targetPosition = glm::vec3(1.05f, -0.3f, -0.075f);  // Prag vrata
+                    it->targetPosition = glm::vec3(1.05f, -0.3f, -0.075f); 
                 }
                 else if (it->waypointIndex == 13) {
-                    // U pragu → idi napolje (pravo van autobusa)
                     it->waypointIndex = 14;
-                    it->targetPosition = glm::vec3(1.2f, -0.3f, -0.075f);  // Spolja, centralno
+                    it->targetPosition = glm::vec3(1.2f, -0.3f, -0.075f);
                 }
                 else if (it->waypointIndex == 14) {
-                    // Napolje → OBRIŠI putnika
                     it = activePassengers.erase(it);
                     continue;
                 }
             } else {
-                // Normalno kretanje ka target poziciji
                 glm::vec3 moveDir = glm::normalize(direction);
                 
-                // Uspori kod prolaska kroz vrata (waypoint 0 i 12-13)
                 if (it->waypointIndex == 0 || it->waypointIndex == 12 || it->waypointIndex == 13) {
-                    it->position += moveDir * (it->moveSpeed * 0.7f) * dt;  // 70% brzine u vratima
+                    it->position += moveDir * (it->moveSpeed * 0.7f) * dt; 
                 } else {
-                    it->position += moveDir * it->moveSpeed * dt;  // Normalna brzina
+                    it->position += moveDir * it->moveSpeed * dt; 
                 }
             }
         } else {
-            // Kada ne hoda, resetuj animaciju
             it->walkAnimTime = 0.0f;
         }
         ++it;
@@ -835,14 +806,14 @@ int main()
     // ========== PODESAVANJA OPENGL ==========
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);  // INICIJALNO UKLJUČENO
     glViewport(0, 0, mode->width, mode->height);
     glLineWidth(3.0f);
     glClearColor(0.5, 0.5, 0.5, 1.0);
     
-    // Face culling podesavanja - inicijalno ISKLJUCENO
-    glCullFace(GL_BACK);  // Definise koje strane se odstranjuju (zadnje)
-    glFrontFace(GL_CCW);  // Definise front face (counter-clockwise)
+    
+    glCullFace(GL_BACK);   
+    glFrontFace(GL_CCW);   
 
     // ========== UCITAVANJE SEJDERA ==========
     std::cout << "\n=== UCITAVANJE SEJDERA ===" << std::endl;
@@ -1076,10 +1047,10 @@ int main()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    // HUMANOID VAO FOR PASSENGERS - POBOLJŠAN IZGLED
+    // HUMANOID VAO
     std::vector<float> humanoidVertices;
     
-    // GLAVA - zaobljena, realistične proporcije
+    // GLAVA
     float headVertices[] = {
         // Prednja strana glave (blago zaobljena)
         -0.05f,  0.18f,  0.07f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
@@ -1113,7 +1084,7 @@ int main()
         -0.03f,  0.18f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 1.0f,  0.0f, -1.0f, 0.0f,
     };
     
-    // TRUP - prirodnije proporcionisan
+    // TRUP
     float torsoVertices[] = {
         // Prednja strana trupa (širok na ramenima)
         -0.09f, -0.05f,  0.06f,  0.3f, 0.5f, 0.8f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
@@ -1147,7 +1118,7 @@ int main()
         -0.09f, -0.05f,  0.06f,  0.28f, 0.48f, 0.78f, 1.0f,  0.0f, 1.0f,  0.0f, -1.0f, 0.0f,
     };
     
-    // LEVA RUKA - cilindrični oblik
+    // LEVA RUKA
     float leftArmVertices[] = {
         // Prednja strana
         -0.12f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
@@ -1171,7 +1142,7 @@ int main()
         -0.09f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
     };
     
-    // DESNA RUKA - cilindrični oblik
+    // DESNA RUKA
     float rightArmVertices[] = {
         // Prednja strana
          0.09f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
@@ -1195,7 +1166,7 @@ int main()
          0.12f, -0.04f,  0.03f,  1.0f, 0.85f, 0.7f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
     };
     
-    // LEVA NOGA - cilindrični oblik
+    // LEVA NOGA
     float leftLegVertices[] = {
         // Prednja strana
         -0.06f, -0.28f,  0.04f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
@@ -1219,7 +1190,7 @@ int main()
         -0.02f, -0.28f,  0.04f,  0.18f, 0.18f, 0.58f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
     };
     
-    // DESNA NOGA - cilindrični oblik
+    // DESNA NOGA
     float rightLegVertices[] = {
         // Prednja strana
          0.02f, -0.28f,  0.04f,  0.2f, 0.2f, 0.6f, 1.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f,
@@ -1243,7 +1214,7 @@ int main()
          0.06f, -0.28f,  0.04f,  0.18f, 0.18f, 0.58f, 1.0f,  1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
     };
     
-    // KOSA (za obične putnike) - jednostavna frizura
+    // KOSA
     float hairVertices[] = {
         // Gornji deo kose (pokriva vrh glave)
         -0.06f,  0.30f,  0.08f,  0.2f, 0.15f, 0.1f, 1.0f,  0.0f, 0.0f,  0.0f, 1.0f, 0.0f,
@@ -1296,14 +1267,12 @@ int main()
         -0.09f,  0.28f,  0.08f,  0.02f, 0.02f, 0.05f, 1.0f,  0.0f, 1.0f,  0.0f, -1.0f, 0.0f,
     };
     
-    // Kombinuj sve delove u jedan buffer - BEZ KAPICE (kapica se renderuje zasebno)
     for (int i = 0; i < sizeof(headVertices) / sizeof(float); i++) humanoidVertices.push_back(headVertices[i]);
     for (int i = 0; i < sizeof(torsoVertices) / sizeof(float); i++) humanoidVertices.push_back(torsoVertices[i]);
     for (int i = 0; i < sizeof(leftArmVertices) / sizeof(float); i++) humanoidVertices.push_back(leftArmVertices[i]);
     for (int i = 0; i < sizeof(rightArmVertices) / sizeof(float); i++) humanoidVertices.push_back(rightArmVertices[i]);
     for (int i = 0; i < sizeof(leftLegVertices) / sizeof(float); i++) humanoidVertices.push_back(leftLegVertices[i]);
     for (int i = 0; i < sizeof(rightLegVertices) / sizeof(float); i++) humanoidVertices.push_back(rightLegVertices[i]);
-    // KAPICA SE NE DODAJE OVDE - renderuje se zasebno samo za kontrolora
 
     unsigned int humanoidVAO, humanoidVBO;
     glGenVertexArrays(1, &humanoidVAO);
@@ -1324,7 +1293,7 @@ int main()
 
     glBindVertexArray(0);
 
-    // ========== VAO ZA KOSU (ZA OBIČNE PUTNIKE) ==========
+    // ========== VAO ZA KOSU ==========
     std::vector<float> hairOnlyVertices;
     for (int i = 0; i < sizeof(hairVertices) / sizeof(float); i++) {
         hairOnlyVertices.push_back(hairVertices[i]);
@@ -1386,12 +1355,20 @@ int main()
     glm::vec3 cameraPos = glm::vec3(0.0, 0.0, 0.15);
     glm::vec3 cameraUp = glm::vec3(0.0, 1.0, 0.0);
     
-    // ========== PHONG LIGHTING SETUP ==========
-    // Pozicija svetla (UNUTAR autobusa - u centru plafona)
+    // ========== PHONG LIGHTING SETUP==========
+    // Pozicija svetla
     glm::vec3 lightPos = glm::vec3(0.0f, 0.4f, 0.0f);
     
-    // Boja svetla (neutralna bela svetlost - kao sijalica u autobusu)
-    glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 0.95f);
+    // Light struktura (Phong model)
+    glm::vec3 lightKA = glm::vec3(0.6f, 0.6f, 0.6f);    // Ambient 
+    glm::vec3 lightKD = glm::vec3(1.0f, 1.0f, 1.0f);    // Diffuse 
+    glm::vec3 lightKS = glm::vec3(1.0f, 1.0f, 1.0f);    // Specular
+    
+    // Material struktura (Phong model)
+    float materialShine = 32.0f;                          // Shininess
+    glm::vec3 materialKA = glm::vec3(0.4f, 0.4f, 0.4f);  // Ambient refleksija
+    glm::vec3 materialKD = glm::vec3(0.8f, 0.8f, 0.8f);  // Diffuse refleksija 
+    glm::vec3 materialKS = glm::vec3(0.5f, 0.5f, 0.5f);  // Specular refleksija
     
     auto lastTime = std::chrono::high_resolution_clock::now();
 
@@ -1401,12 +1378,8 @@ int main()
     std::cout << "  Levi klik - dodaj putnika" << std::endl;
     std::cout << "  Desni klik - ukloni putnika" << std::endl;
     std::cout << "  K - kontrola ulazi" << std::endl;
-    std::cout << "  O - otvori/zatvori vrata" << std::endl;
     std::cout << "  1/2 - ukljuci/iskljuci depth test" << std::endl;
     std::cout << "  3/4 - ukljuci/iskljuci face culling" << std::endl;
-    std::cout << "  Mis - pomeri pogled" << std::endl;
-    std::cout << "  WASD - rotiraj scenu" << std::endl;
-    std::cout << "  Strelice - pomeri kameru" << std::endl;
     std::cout << "  ESC - izlaz" << std::endl;
     std::cout << "========================================\n" << std::endl;
 
@@ -1426,65 +1399,51 @@ int main()
 
         // ========== LOGIKA ==========
         // Testiranje dubine
-        if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
+        if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS && !key1Pressed) {
             depthTestEnabled = true;
             glEnable(GL_DEPTH_TEST);
             std::cout << "Depth Test: UKLJUČEN" << std::endl;
+            key1Pressed = true;
         }
-        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
+        if (glfwGetKey(window, GLFW_KEY_1) == GLFW_RELEASE) {
+            key1Pressed = false;
+        }
+        
+        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS && !key2Pressed) {
             depthTestEnabled = false;
             glDisable(GL_DEPTH_TEST);
             std::cout << "Depth Test: ISKLJUČEN" << std::endl;
+            key2Pressed = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_RELEASE) {
+            key2Pressed = false;
         }
 
         // Odstranjivanje lica
-        if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
+        if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS && !key3Pressed) {
             faceCullingEnabled = true;
             glEnable(GL_CULL_FACE);
-            std::cout << "Face Culling: UKLJUČEN" << std::endl;
+            std::cout << "Face Culling: UKLJUČEN (uklanja zadnja lica - GL_BACK)" << std::endl;
+            key3Pressed = true;
         }
-        if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
+        if (glfwGetKey(window, GLFW_KEY_3) == GLFW_RELEASE) {
+            key3Pressed = false;
+        }
+        
+        if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS && !key4Pressed) {
             faceCullingEnabled = false;
             glDisable(GL_CULL_FACE);
             std::cout << "Face Culling: ISKLJUČEN" << std::endl;
+            key4Pressed = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_4) == GLFW_RELEASE) {
+            key4Pressed = false;
         }
 
-        // Transformisanje
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-            model = glm::rotate(model, glm::radians(-0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
-        }
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-            model = glm::rotate(model, glm::radians(0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
-        }
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-            model = glm::rotate(model, glm::radians(-0.5f), glm::vec3(1.0f, 0.0f, 1.0f));
-        }
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-            model = glm::rotate(model, glm::radians(0.5f), glm::vec3(1.0f, 0.0f, 1.0f));
-        }
 
-        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-            cameraPos += 0.01f * glm::normalize(glm::vec3(cameraFront.z, 0, -cameraFront.x));
-        }
-        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-            cameraPos -= 0.01f * glm::normalize(glm::vec3(cameraFront.z, 0, -cameraFront.x));
-        }
-        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-            cameraPos += 0.01f * glm::normalize(glm::vec3(cameraFront.x, 0, cameraFront.z));
-        }
-        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-            cameraPos -= 0.01f * glm::normalize(glm::vec3(cameraFront.x, 0, cameraFront.z));
-        }
-
-        // Rotacija volana i truckanje
-        bool isManualDriving = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
-                               glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ||
-                               glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ||
-                               glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
-        
         bool isBusMoving = !busAtStation;
 
-        if (isManualDriving || isBusMoving) {
+        if (isBusMoving) {
             wheelRotation = sin(glfwGetTime() * 0.8f) * 15.0f;
             busShakeTime += 0.016f;
             busShakeOffset = sin(busShakeTime * busShakeSpeed) * busShakeAmplitude;
@@ -1611,8 +1570,8 @@ int main()
         // ========== RENDEROVANJE 3D SCENE ==========
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0, 0, mode->width, mode->height);
-        glClearColor(0.53f, 0.81f, 0.92f, 1.0f);  // Plavo nebo (sky blue)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClearColor(0.53f, 0.81f, 0.92f, 1.0f);  
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
 
         glUseProgram(shader3D);
 
@@ -1625,15 +1584,37 @@ int main()
         glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(shakeModel));
         glUniformMatrix4fv(glGetUniformLocation(shader3D, "uV"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(shader3D, "uP"), 1, GL_FALSE, glm::value_ptr(projection));
-        glUniform3fv(glGetUniformLocation(shader3D, "uLightPos"), 1, glm::value_ptr(lightPos));
-        glUniform3fv(glGetUniformLocation(shader3D, "uLightColor"), 1, glm::value_ptr(lightColor));
+        
+        // Phong lighting uniforms
+        glUniform3fv(glGetUniformLocation(shader3D, "uLight.pos"), 1, glm::value_ptr(lightPos));
+        glUniform3fv(glGetUniformLocation(shader3D, "uLight.kA"), 1, glm::value_ptr(lightKA));
+        glUniform3fv(glGetUniformLocation(shader3D, "uLight.kD"), 1, glm::value_ptr(lightKD));
+        glUniform3fv(glGetUniformLocation(shader3D, "uLight.kS"), 1, glm::value_ptr(lightKS));
+        
+        glUniform1f(glGetUniformLocation(shader3D, "uMaterial.shine"), materialShine);
+        glUniform3fv(glGetUniformLocation(shader3D, "uMaterial.kA"), 1, glm::value_ptr(materialKA));
+        glUniform3fv(glGetUniformLocation(shader3D, "uMaterial.kD"), 1, glm::value_ptr(materialKD));
+        glUniform3fv(glGetUniformLocation(shader3D, "uMaterial.kS"), 1, glm::value_ptr(materialKS));
+        
         glUniform3fv(glGetUniformLocation(shader3D, "uViewPos"), 1, glm::value_ptr(cameraPos));
+        
         glUniform1i(glGetUniformLocation(shader3D, "useTex"), false);
         glUniform1i(glGetUniformLocation(shader3D, "transparent"), true);
         glUniform1i(glGetUniformLocation(shader3D, "useCustomColor"), false);
 
         glm::mat4 worldModel = glm::mat4(1.0f);
         glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(worldModel));
+        
+        // Phong lighting za svet
+        glUniform3fv(glGetUniformLocation(shader3D, "uLight.pos"), 1, glm::value_ptr(lightPos));
+        glUniform3fv(glGetUniformLocation(shader3D, "uLight.kA"), 1, glm::value_ptr(lightKA));
+        glUniform3fv(glGetUniformLocation(shader3D, "uLight.kD"), 1, glm::value_ptr(lightKD));
+        glUniform3fv(glGetUniformLocation(shader3D, "uLight.kS"), 1, glm::value_ptr(lightKS));
+        
+        glUniform1f(glGetUniformLocation(shader3D, "uMaterial.shine"), materialShine);
+        glUniform3fv(glGetUniformLocation(shader3D, "uMaterial.kA"), 1, glm::value_ptr(materialKA));
+        glUniform3fv(glGetUniformLocation(shader3D, "uMaterial.kD"), 1, glm::value_ptr(materialKD));
+        glUniform3fv(glGetUniformLocation(shader3D, "uMaterial.kS"), 1, glm::value_ptr(materialKS));
         
         glBindVertexArray(roadVAO);
         
@@ -1703,91 +1684,78 @@ int main()
             glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
         }
 
-        // Crtanje putnika (humanoidan oblik - poboljšan sa animacijom hodanja)
+        // Crtanje putnika
         glBindVertexArray(humanoidVAO);
         
         for (const auto& p : activePassengers) {
             glm::mat4 passengerModel = shakeModel;
             passengerModel = glm::translate(passengerModel, p.position);
             
-            // ROTACIJA PREMA PRAVCU KRETANJA - putnici gledaju u pravcu hodanja
             if (p.isMoving) {
                 glm::vec3 direction = glm::normalize(p.targetPosition - p.position);
-                // Izračunaj ugao rotacije (atan2 za ugao između pravca i Z ose)
                 float angle = atan2(direction.x, direction.z);
-                // Rotiraj putnika oko Y ose (vertikalno) da gleda ka target poziciji
                 passengerModel = glm::rotate(passengerModel, angle, glm::vec3(0.0f, 1.0f, 0.0f));
             } else {
-                // Kada stoji, gleda ka unutrašnjosti autobusa (default rotacija)
                 passengerModel = glm::rotate(passengerModel, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
             }
             
             glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(passengerModel));
             
-            // OMOGUCI useCustomColor ZA SVE DELOVE PUTNIKA (ne samo za torso)
             glUniform1i(glGetUniformLocation(shader3D, "useCustomColor"), 1);
             
-            // Skin tone boja za glavu, vrat
             glm::vec3 skinColor = glm::vec3(1.0f, 0.85f, 0.7f);
             
-            // Glava (6 strana) + vrat (1 strana) = 7 faces - SKIN TONE
             glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(skinColor));
             for (int i = 0; i < 7; ++i) {
                 glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
             }
             
-            // Trup - koristi SHIRT boju (custom boja po putniku) - 6 faces
             glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(p.shirtColor));
             for (int i = 7; i < 13; ++i) {
                 glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
             }
             
-            // Leva ruka - SHIRT boja (rukavi majice) - 4 strane
             glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(p.shirtColor));
             for (int i = 13; i < 17; ++i) {
                 glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
             }
             
-            // Desna ruka - SHIRT boja (rukavi majice) - 4 strane
             glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(p.shirtColor));
             for (int i = 17; i < 21; ++i) {
                 glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
             }
             
-            // ========== ANIMACIJA HODANJA - NOGE (SA ROTACIJOM) ==========
-            // Leva noga - koristi pants boju (4 strane) + prirodna animacija hodanja
+            // ========== ANIMACIJA HODANJA ==========
             glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(p.pantsColor));
             
             if (p.isMoving) {
-                // Leva noga - rotira se oko kuka (gornjeg dela noge) - ugao rotacije
-                float leftLegAngle = sin(p.walkAnimTime) * 25.0f;  // Max 25 stepeni napred/nazad
-                glm::vec3 hipPivot = glm::vec3(-0.04f, -0.05f, 0.01f);  // Pozicija kuka (gornji deo leve noge)
+                float leftLegAngle = sin(p.walkAnimTime) * 25.0f; 
+                glm::vec3 hipPivot = glm::vec3(-0.04f, -0.05f, 0.01f);
                 
-                glm::mat4 leftLegModel = passengerModel;  // VEĆ ROTIRANO prema pravcu kretanja!
-                leftLegModel = glm::translate(leftLegModel, hipPivot);  // Pomeri do kuka
+                glm::mat4 leftLegModel = passengerModel; 
+                leftLegModel = glm::translate(leftLegModel, hipPivot);  
                 leftLegModel = glm::rotate(leftLegModel, glm::radians(leftLegAngle), glm::vec3(1.0f, 0.0f, 0.0f));  // Rotiraj oko X-ose
-                leftLegModel = glm::translate(leftLegModel, -hipPivot);  // Vrati nazad
+                leftLegModel = glm::translate(leftLegModel, -hipPivot);  
                 glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(leftLegModel));
                 
                 for (int i = 21; i < 25; ++i) {
                     glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
                 }
                 
-                // Desna noga - rotira se u suprotnu stranu (prirodno hodanje)
-                float rightLegAngle = -sin(p.walkAnimTime) * 25.0f;  // Suprotna faza
-                glm::vec3 hipPivotRight = glm::vec3(0.04f, -0.05f, 0.01f);  // Pozicija desnog kuka
                 
-                glm::mat4 rightLegModel = passengerModel;  // VEĆ ROTIRANO prema pravcu kretanja!
-                rightLegModel = glm::translate(rightLegModel, hipPivotRight);  // Pomeri do kuka
+                float rightLegAngle = -sin(p.walkAnimTime) * 25.0f;
+                glm::vec3 hipPivotRight = glm::vec3(0.04f, -0.05f, 0.01f);  
+                
+                glm::mat4 rightLegModel = passengerModel;  
+                rightLegModel = glm::translate(rightLegModel, hipPivotRight); 
                 rightLegModel = glm::rotate(rightLegModel, glm::radians(rightLegAngle), glm::vec3(1.0f, 0.0f, 0.0f));  // Rotiraj oko X-ose
-                rightLegModel = glm::translate(rightLegModel, -hipPivotRight);  // Vrati nazad
+                rightLegModel = glm::translate(rightLegModel, -hipPivotRight);  
                 glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(rightLegModel));
                 
                 for (int i = 25; i < 29; ++i) {
                     glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
                 }
             } else {
-                // Kada stoji, noge su statične (bez rotacije) - ALI SA rotacijom tela!
                 glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(passengerModel));
                 for (int i = 21; i < 25; ++i) {
                     glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
@@ -1797,42 +1765,33 @@ int main()
                 }
             }
             
-            // KOSA ili KAPICA - zavisi da li je kontrolor ili običan putnik
             if (p.isInspector) {
-                // KAPICA - SAMO za kontrolora (zasebni VAO - 4 faces)
-                // Vrati model matricu na osnovnu poziciju putnika
+                // KAPICA
                 glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(passengerModel));
                 
-                // Prebaci se na capVAO (zasebni buffer za kapicu)
                 glBindVertexArray(capVAO);
                 
                 glm::vec3 capColor = glm::vec3(0.02f, 0.02f, 0.08f);  // Tamnoplava
                 glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(capColor));
                 
-                // Crtaj sve 4 face kapice (0-3 iz capVAO buffer-a)
                 for (int i = 0; i < 4; ++i) {
                     glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
                 }
                 
-                // Vrati se na humanoidVAO za sledeće putnike
                 glBindVertexArray(humanoidVAO);
             } else {
-                // KOSA - za obične putnike (hairVAO - 5 faces)
-                // Vrati model matricu na osnovnu poziciju putnika
+                // KOSA
                 glUniformMatrix4fv(glGetUniformLocation(shader3D, "uM"), 1, GL_FALSE, glm::value_ptr(passengerModel));
                 
-                // Prebaci se na hairVAO (zasebni buffer za kosu)
                 glBindVertexArray(hairVAO);
                 
                 // Koristi hair boju putnika (random)
                 glUniform3fv(glGetUniformLocation(shader3D, "uCustomColor"), 1, glm::value_ptr(p.hairColor));
                 
-                // Crtaj sve 5 faces kose (0-4 iz hairVAO buffer-a)
                 for (int i = 0; i < 5; ++i) {
                     glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
                 }
                 
-                // Vrati se na humanoidVAO za sledeće putnike
                 glBindVertexArray(humanoidVAO);
             }
         }
@@ -1840,8 +1799,6 @@ int main()
         glUniform1i(glGetUniformLocation(shader3D, "isInspector"), 0);
         glUniform1i(glGetUniformLocation(shader3D, "useCustomColor"), false);
 
-        // ========== RENDEROVANJE AUTHOR TEKSTA (2D OVERLAY) ==========
-        // PRIVREMENO iskljuci depth test za 2D overlay
         GLboolean depthTestWasEnabled = glIsEnabled(GL_DEPTH_TEST);
         glDisable(GL_DEPTH_TEST);
         
